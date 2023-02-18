@@ -1,0 +1,453 @@
+---
+title: "Find Round"
+author: "Jacob Kauffman"
+date: "11/1/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r}
+library("rjson")
+library(jsonlite)
+library("ndjson")
+library(tidyverse)
+library(hexbin)
+library(jsonlite)
+library(httr)
+library(scales)
+library(grid)
+library(jpeg)
+library(RCurl)
+library("stringr")
+library(readxl)
+library(foreign)
+library(sandwich)
+library(lmtest)
+library(car)
+library(stargazer)
+```
+
+```{r}
+bball_season_data <- as.data.frame(read.csv("basketball possessions.csv")) #Read in team statstics
+bball_season_data
+lineup <- as.data.frame(read.csv("basketball.pbps.csv"))
+lineup
+player_box <- as.data.frame(read.csv("basketball.boxscores.players.csv"))
+player_box
+
+bball_season_data_filtered <- data.frame(cbind(bball_season_data[,c(2,4,28,29,37)]))
+bball_season_data_filtered$shotY[bball_season_data_filtered$shotY == 0] <- NA
+bball_season_data_filtered <- na.omit(bball_season_data_filtered)
+bball_season_data_filtered$shottype <- str_sub(bball_season_data_filtered$description, -5)
+bball_season_data_filtered$description <- str_sub(bball_season_data_filtered$description, -10,-7)
+bball_season_data_filtered <- subset(bball_season_data_filtered, bball_season_data_filtered$description %in% c('Make', 'Miss'))
+bball_season_data_filtered
+```
+
+
+```{r}
+bball_season_data_r <- bball_season_data_filtered %>% filter(shotX < -60 | shotX > 60 | shotY > 170 ) %>% group_by(defense__name) %>% count(defense__name)
+colnames(bball_season_data_r)[2] <- "Shots from mid-range"
+bball_season_data_l <- bball_season_data_filtered %>% group_by(defense__name) %>% count(defense__name)
+colnames(bball_season_data_l)[2] <- "All shots"
+bball_season_data_lr <- merge(bball_season_data_r, bball_season_data_l, by = "defense__name")
+bball_season_data_lr$sharemid <- bball_season_data_lr$`Shots from mid-range` / (bball_season_data_lr$`Shots from mid-range`+bball_season_data_lr$`All shots`)
+bball_season_data_lr <- bball_season_data_lr %>% arrange(-bball_season_data_lr$sharemid)
+bball_season_data_lr$conferencewins <- c(14, 7, 14, 5, 12, 7, 10, 9, 4, 8)
+bball_season_data_lr
+```
+
+```{r}
+bball_season_data_agg <- as.data.frame(read_excel("big12leaders.xlsx")) 
+bball_season_data_agg
+reg1 <- lm(Wins ~ Mid_rate + Mid_FG + Three_FG + Rim_FG, data = bball_season_data_agg)
+stargazer(reg1,
+          title="Midrange Regression and FG%'s Effects on Wins", align=TRUE, omit.stat="f", # aesthetics
+          type="text", out="regtable.txt") # output type and filename
+
+ggplot(bball_season_data_agg, aes(x = Mid_rate, y = Mid_FG, size = Wins)) + geom_point(aes(size = Wins, fill = Wins), alpha = 0.7) +
+scale_color_gradient(low = "#FF0000", high = "#00FF00") + ggtitle("Wins increase with more frequent/effective mid-range shooting")+ labs( x= "Mid-Range Possessions per Game", y = "Mid-Range FG%", size = "Number of Conference Wins")
+
+```
+
+```{r}
+bball_season_data_filtered <- data.frame(cbind(bball_season_data[,c(2,4,28,29,37)]))
+bball_season_data_filtered$shotY[bball_season_data_filtered$shotY == 0] <- NA
+bball_season_data_filtered <- na.omit(bball_season_data_filtered)
+bball_season_data_filtered$shottype <- str_sub(bball_season_data_filtered$description, -5)
+bball_season_data_filtered$description <- str_sub(bball_season_data_filtered$description, -10,-7)
+bball_season_data_filtered <- subset(bball_season_data_filtered, bball_season_data_filtered$description %in% c('Make', 'Miss'))
+bball_season_data_filtered
+
+bball_season_data_filtered_baylor <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('Baylor'))
+bball_season_data_filtered_baylor
+
+bball_season_data_filtered_iowastate <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('IowaState'))
+bball_season_data_filtered_iowastate
+
+bball_season_data_filtered_kansas <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('Kansas'))
+bball_season_data_filtered_kansas
+
+bball_season_data_filtered_ttu <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('TexasTech'))
+bball_season_data_filtered_ttu
+
+bball_season_data_filtered_oklahoma <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('Oklahoma'))
+bball_season_data_filtered_oklahoma
+
+bball_season_data_filtered_wvu <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('WestVirginia'))
+bball_season_data_filtered_wvu
+
+bball_season_data_filtered_oklahomastate <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('OklahomaState'))
+bball_season_data_filtered_oklahomastate
+
+bball_season_data_filtered_kansasstate <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('KansasState'))
+bball_season_data_filtered_kansasstate
+
+bball_season_data_filtered_texas <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('TexasAustin'))
+bball_season_data_filtered_texas
+
+bball_season_data_filtered_tcu <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('TCU'))
+bball_season_data_filtered_tcu
+
+bball_season_data_filtered_baylor1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('Baylor'))
+bball_season_data_filtered_baylor1
+
+bball_season_data_filtered_iowastate1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('IowaState'))
+bball_season_data_filtered_iowastate1
+
+bball_season_data_filtered_kansas1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('Kansas'))
+bball_season_data_filtered_kansas1
+
+bball_season_data_filtered_ttu1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('TexasTech'))
+bball_season_data_filtered_ttu1
+
+bball_season_data_filtered_oklahoma1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('Oklahoma'))
+bball_season_data_filtered_oklahoma1
+
+bball_season_data_filtered_wvu1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('WestVirginia'))
+bball_season_data_filtered_wvu1
+
+bball_season_data_filtered_oklahomastate1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('OklahomaState'))
+bball_season_data_filtered_oklahomastate1
+
+bball_season_data_filtered_kansasstate1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('KansasState'))
+bball_season_data_filtered_kansasstate1
+
+bball_season_data_filtered_texas1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('TexasAustin'))
+bball_season_data_filtered_texas1
+
+bball_season_data_filtered_tcu1 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('TCU'))
+bball_season_data_filtered_tcu1
+```
+```{r}
+bball_season_data_agg <- as.data.frame(read_excel("big12leaders.xlsx")) #Read in team statstics
+bball_season_data_agg$wins <- c(14, 14, 8, 5, 9, 12, 7, 10, 7, 4)
+
+bball_season_data_agg <- data.frame(cbind(bball_season_data_agg[,c(1,3,5,14,15,18)]))
+bball_season_data_agg <- bball_season_data_agg %>% arrange(-wins)
+bball_season_data_agg
+reg1 <- lm(wins ~ eFG + TO + FT, data = bball_season_data_agg)
+bball_season_data_agg_defense <- as.data.frame(read_excel("big12leaders_defense.xlsx")) #Read in team statstics
+bball_season_data_agg_defense$wins <- c(14, 8, 5, 14, 10, 9, 12, 7, 4, 7)
+bball_season_data_agg_defense <- data.frame(cbind(bball_season_data_agg_defense[,c(1,3,5,14,15,18)]))
+bball_season_data_agg_defense <- bball_season_data_agg_defense %>% arrange(-wins)
+bball_season_data_agg_defense
+
+reg2 <- lm(wins ~ opp_eFG + opp_TO + opp_FT, data = bball_season_data_agg_defense)
+reg2
+stargazer(reg1,reg2,
+          title="Regression", align=TRUE, omit.stat="f", # aesthetics
+          type="text", out="regtable.txt") # output type and filename
+
+```
+
+
+```{r}
+# half court image
+courtImg.URL <- "https://i.postimg.cc/Pf78ZcQ8/Screen-Shot-2022-11-01-at-4-42-50-PM.jpg"
+court <- rasterGrob(readJPEG(getURLContent(courtImg.URL)),
+           width=unit(1,"npc"), height=unit(1,"npc"))
+ 
+# plot using NBA court background and colour by shot zone
+ggplot(bball_season_data_filtered, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("Baylor" = "darkgreen", "KansasState" = "purple", "Kansas" = "blue", "TexasAustin" = "orange", "TCU" = "blueviolet", "TexasTech" = "red", "OklahomaState" = "coral", "WestVirginia" = "goldenrod1", "Oklahoma" = "maroon", "IowaState" = "gold")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_kansasstate, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+   scale_color_manual(values = c("KansasState" = "purple")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_ttu, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+   scale_color_manual(values = c("TexasTech" = "red")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_kansas, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+   scale_color_manual(values = c("Kansas" = "blue")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_baylor, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("Baylor" = "darkgreen")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_iowastate, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("IowaState" = "gold")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_texas, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("TexasAustin" = "orange")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_oklahoma, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("Oklahoma" = "maroon")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_tcu, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("TCU" = "blueviolet")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_oklahomastate, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("OklahomaState" = "coral")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_wvu, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = offense__name, shape = description)) +
+  scale_color_manual(values = c("WestVirginia" = "goldenrod1")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+```
+
+```{r}
+ggplot(bball_season_data_filtered_kansasstate1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+   scale_color_manual(values = c("KansasState" = "purple")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_ttu1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+   scale_color_manual(values = c("TexasTech" = "red")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_kansas1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+   scale_color_manual(values = c("Kansas" = "blue")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_baylor1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("Baylor" = "darkgreen")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_iowastate1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("IowaState" = "gold")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_texas1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("TexasAustin" = "orange")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_oklahoma1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("Oklahoma" = "maroon")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_tcu1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("TCU" = "blueviolet")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_oklahomastate1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("OklahomaState" = "coral")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+
+ggplot(bball_season_data_filtered_wvu1, aes(x=shotX, y=shotY)) + 
+      annotation_custom(court, -250, 250, -50, 420) +
+      geom_point(aes(colour = defense__name, shape = description)) +
+  scale_color_manual(values = c("WestVirginia" = "goldenrod1")) +
+      xlim(-250, 250) +
+      ylim(-50, 420)
+```
+
+```{r}
+
+bball_season_data_filtered_mid <- bball_season_data_filtered %>% filter(shotX < -60 | shotX > 60 | shotY > 170 ) %>% filter(shottype != "3 Pts")  %>% count(offense__name)
+
+cornerthree_percent_of_shots<- merge(bball_season_data_filtered_three, bball_season_data_filtered_corner, by = "offense__name")
+
+
+colnames(bball_season_data_filtered_mid)[2] ="Percent of Mid-Ranges Made"
+bball_season_data_filtered_mid <- data.frame(cbind(bball_season_data_filtered_mid[,c(1,2,5)]))
+bball_season_data_filtered_mid <- bball_season_data_filtered_mid %>% arrange(desc(Percent.of.Mid-Ranges))
+cornerthrees$standinginconference <- c(7, 1, 2, 6, 5, 4, 3, 8, 10, 9)
+cornerthrees$conferencewins <- c(7, 14, 14, 8, 9, 10, 12, 7, 4, 5)
+cornerthrees
+reg3 <- lm(conferencewins ~ Percent.of.Mid-Ranges)
+vcov3 <- vcovHC(reg3, type="HC1")
+coeftest(reg3, vcov3)
+test <- linearHypothesis(reg3, "Percent.of.Threes.taken.that.are.from.the.corner= 0", vcov = vcov3)
+cat("With an f-statistic of", sqrt(test$F[2]), "and a p-value of ", 2*(pt(sqrt(test$F[2]), sum(complete.cases(cornerthrees))-1, lower=FALSE)), "lower than the significance leve of 5%, I reject the null hypothesis.")
+stargazer(reg3,
+          title="Regression", align=TRUE, omit.stat="f", # aesthetics
+          type="text", out="regtable.txt") # output type and filename
+
+```
+
+```{r}
+bball_season_data_r <- bball_season_data_filtered %>% filter(shotX < -60 | shotX > 60 | shotY > 170 ) %>% group_by(defense__name) %>% count(defense__name)
+colnames(bball_season_data_r)[2] <- "Shots from mid-range and 3"
+bball_season_data_l <- bball_season_data_filtered %>% group_by(defense__name) %>% count(defense__name)
+colnames(bball_season_data_l)[2] <- "All shots"
+bball_season_data_lr <- merge(bball_season_data_r, bball_season_data_l, by = "defense__name")
+bball_season_data_lr$sharemidandthree <- bball_season_data_lr$`Shots from mid-range and 3` / (bball_season_data_lr$`Shots from mid-range and 3`+bball_season_data_lr$`All shots`)
+bball_season_data_lr <- bball_season_data_lr %>% arrange(-bball_season_data_lr$sharemidandthree)
+bball_season_data_lr$conferencewins <- c(14, 7, 14, 5, 12, 7, 10, 9, 4, 8)
+bball_season_data_lr
+```
+
+
+```{r}
+bball_season_data_filtered_baylor2 <- subset(bball_season_data_filtered, bball_season_data_filtered$offense__name %in% c('Baylor'))
+
+bball_season_data_filtered_baylor3 <- subset(bball_season_data_filtered, bball_season_data_filtered$defense__name %in% c('Baylor'))
+
+##filtering only to 87.5% of Baylor's midrange shots
+bball_season_data_filtered_baylor4 <- bball_season_data_filtered_baylor2 %>% filter(shotX < -60 | shotX > 60 | shotY > 170 )  %>%  filter(shottype != "3 Pts") %>% slice(1:93)
+
+##duplicating this and then combining with a subset of Baylor's original data that omits 93 around the basket and mid-range shots that Baylor will replace 
+bball_season_data_filtered_baylor42 <- bball_season_data_filtered_baylor2 %>% filter(shotX < -60 | shotX > 60 | shotY > 170 )  %>%  filter(shottype != "3 Pts") %>% slice(1:93)
+
+bball_season_data_filtered_baylor_moremid <- rbind(bball_season_data_filtered_baylor4, bball_season_data_filtered_baylor42)
+
+## the 93 shots that I omit from Baylor's season represent an intentionally selected sample that reflects both Baylor's season shooting % as well as the rate at which they attempted mid-ranges
+bball_season_data_filtered_baylor5 <- bball_season_data_filtered_baylor2 %>% slice(1:869)
+bball_season_data_filtered_baylor_newoffense <-rbind(bball_season_data_filtered_baylor5, bball_season_data_filtered_baylor_moremid)
+
+##now we have a new dataframe that represents a Baylor offense that reflects what Baylor's new offense would look like if they attempted 75% more midrange shots.
+
+
+##I will now use a Machine Learning model that is trained on Baylor's actual season dataset and use these shots to predict outcomes for Baylor's ficticious season where they attempt 75% more threes.
+
+bball_season_data_filtered_baylor_newoffense[2] <- NA
+## Run a random forest model using all of the variables in the
+result_rf <- randomForest(description~., data=pitches_train_model, proximity=TRUE) 
+## Use the predict function to predict pitches in the test model from the pitches in the random forest model. Then combine them with the pitch id's.
+bball_season_data_filtered_baylor_newoffense1 <- predict(result_rf, bball_season_data_filtered_baylor_newoffense) %>% 
+select(description))
+
+
+## Finally, I will use a Monte Carlo simulation to run th
+total <- 0
+total_opp <- 0
+wins <- 0
+for (i in 1:50000) {
+  #sampling 53 times because Baylor had on average 53 possessions per gae
+n <- sample(nrow(bball_season_data_filtered_baylor2),53,replace=T)
+m <- sample(nrow(bball_season_data_filtered_baylor3),53,replace=T)
+b <- bball_season_data_filtered_texas2[n,]
+m <- bball_season_data_filtered_texas3[n,]
+b$description[b$description == 'Miss'] <- NA
+m$description[m$description == 'Miss'] <- NA
+b <- na.omit(b)
+m <- na.omit(m)
+b$shotvalue <- as.numeric(substr(b$shottype,1,1))
+m$shotvalue <- as.numeric(substr(m$shottype,1,1))
+total <- total + sum(b$shotvalue)
+total_opp <- total_opp + sum(m$shotvalue)
+if (total > total_opp){
+  wins <- wins + 1
+}
+total <- 0
+total_opp <- 0
+}
+
+cat("Shooting 11% of their shots from midrange (the rate they actually attempted at during the season), my Monte Carlo simulation that draws from Baylor's 962 offensive plays and 953 defensive plays expects Baylor to win ", wins / 50000 * 18 , " of their games.
+    ")
+
+total <- 0
+total_opp <- 0
+wins1 <- 0
+for (i in 1:50000) {
+n <- sample(nrow(bball_season_data_filtered_baylor_newoffense1),53,replace=T)
+m <- sample(nrow(bball_season_data_filtered_baylor_newoffense1),53,replace=T)
+b <- bball_season_data_filtered_texas2[n,]
+m <- bball_season_data_filtered_texas5[n,]
+b$description[b$description == 'Miss'] <- NA
+m$description[m$description == 'Miss'] <- NA
+b <- na.omit(b)
+m <- na.omit(m)
+b$shotvalue <- as.numeric(substr(b$shottype,1,1))
+m$shotvalue <- as.numeric(substr(m$shottype,1,1))
+total <- total + sum(b$shotvalue) + 
+total_opp <- total_opp + sum(m$shotvalue) 
+if (total > total_opp){
+  wins1 <- wins1 + 1
+}
+total <- 0
+total_opp <- 0
+}
+cat("Shooting 19% of their shots from my midrange (thus increasing their attempt rate by 75%), my Monte Carlo simulation that draws from Baylor's 962 offensive plays and 953 defensive plays expects Baylor to win ", wins1 / 50000 * 18 , " of their games")
+
+# According to this analysis, Baylor is projected to win 1.1 more game in expectation and increase their PPG by 2.5 by simply increasing their 3-Point attempt rate by 75%.
+
+```
+
